@@ -12,27 +12,13 @@ const USERS = {
   '20055': { name: 'Sam Rivera', role: 'user', score: 61, violations: 4, warnings: 3 },
 };
 
-// Live data from API — no defaults
-let POLICIES = [];
-let VIOLATIONS = [];
+const POLICIES = [];
 
-const APPEALS = [
-  { id: 'A001', violationId: 'V001', user: 'Alex Turner', uid: '20087', date: '2024-10-19', message: 'The flagged data access was part of an authorized Q4 audit.', status: 'Under Review' },
-  { id: 'A002', violationId: 'V003', user: 'Sam Rivera', uid: '20055', date: '2024-10-07', message: 'This was a miscommunication with team lead, documented in ticket #4821.', status: 'Pending' },
-];
+const VIOLATIONS = [];
 
-const AUDIT_LOGS = [
-  { ts: '2024-10-20 09:14:32', actor: '10023', action: 'Policy Upload', target: 'Data Protection Policy v3.2', ip: '192.168.1.40' },
-  { ts: '2024-10-20 08:55:10', actor: '20087', action: 'User Login', target: '—', ip: '192.168.1.55' },
-  { ts: '2024-10-19 16:40:01', actor: '20087', action: 'Appeal Submitted', target: 'V001', ip: '192.168.1.55' },
-  { ts: '2024-10-18 14:22:45', actor: '10023', action: 'Violation Confirmed', target: 'V001 — Alex Turner', ip: '192.168.1.40' },
-  { ts: '2024-10-18 11:03:20', actor: 'SYSTEM', action: 'Violation Detected', target: 'V001 — 20087', ip: '—' },
-  { ts: '2024-10-10 13:15:08', actor: 'SYSTEM', action: 'Violation Detected', target: 'V002 — 20087', ip: '—' },
-  { ts: '2024-10-08 10:00:00', actor: '20087', action: 'User Login', target: '—', ip: '192.168.1.55' },
-  { ts: '2024-10-05 09:30:55', actor: '10023', action: 'Violation Confirmed', target: 'V003 — Sam Rivera', ip: '192.168.1.40' },
-  { ts: '2024-09-28 15:12:20', actor: 'SYSTEM', action: 'Violation Detected', target: 'V004 — 20055', ip: '—' },
-  { ts: '2024-09-15 11:45:00', actor: '10023', action: 'Policy Upload', target: 'Security Protocol v2.1', ip: '192.168.1.40' },
-];
+const APPEALS = [];
+
+const AUDIT_LOGS = [];
 
 let selectedPolicyFile = null;
 
@@ -49,6 +35,7 @@ function doLogin() {
     err.style.display = 'none';
     document.getElementById('screen-login').classList.remove('active');
     document.getElementById('screen-app').classList.add('active');
+    AUDIT_LOGS.unshift({ ts: now(), actor: uid, action: 'User Login', target: '—', ip: '—' });
     setupApp();
   } else if (uid.startsWith('100') || uid.startsWith('200')) {
     currentUID = uid;
@@ -56,6 +43,7 @@ function doLogin() {
     err.style.display = 'none';
     document.getElementById('screen-login').classList.remove('active');
     document.getElementById('screen-app').classList.add('active');
+    AUDIT_LOGS.unshift({ ts: now(), actor: uid, action: 'User Login', target: '—', ip: '—' });
     setupApp();
   } else {
     err.style.display = 'block';
@@ -118,13 +106,19 @@ function setupApp() {
     el.style.display = currentRole === 'admin' ? 'flex' : 'none';
   });
 
-  // Init pages (async fetch live data for policies and violations)
+  // Init pages (UI shows immediately, possibly with empty violations)
   initDashboard();
-  initPolicies();   // fetches /api/policies then renders
-  initViolations(); // fetches /api/violations then renders
+  initPolicies();
+  initViolations();
   initAppeals();
   initPrediction();
   initAudit();
+  // Load violations from viola.txt and refresh violation-dependent views
+  loadViolationsFromViola().then(() => {
+    initDashboard();
+    initViolations();
+    initAppeals();
+  });
 
   // User-specific
   if (currentRole === 'user') {
@@ -174,44 +168,51 @@ function initDashboard() {
     document.getElementById('dash-title').innerHTML = 'System <span>Overview</span>';
     document.getElementById('dash-sub').textContent = 'Organization-wide compliance status and activity.';
 
+    const openViolations = VIOLATIONS.filter(v => v.status !== 'Dismissed').length;
+    const pendingAppeals = APPEALS.filter(a => a.status === 'Pending' || a.status === 'Under Review').length;
+    const activePolicies = POLICIES.filter(p => p.status === 'active').length;
+    const uniqueUsers = new Set([...Object.keys(USERS), ...VIOLATIONS.map(v => v.user)]).size;
+
     document.getElementById('dash-stats').innerHTML = `
       <div class="stat-card gold">
         <div class="stat-label">Total Users</div>
-        <div class="stat-value">3</div>
+        <div class="stat-value">${uniqueUsers}</div>
         <div class="stat-meta">active accounts</div>
       </div>
       <div class="stat-card red">
         <div class="stat-label">Open Violations</div>
-        <div class="stat-value">${VIOLATIONS.length}</div>
-        <div class="stat-meta">live from API</div>
+        <div class="stat-value">${openViolations}</div>
+        <div class="stat-meta">${VIOLATIONS.length} total on record</div>
       </div>
       <div class="stat-card blue">
         <div class="stat-label">Pending Appeals</div>
-        <div class="stat-value">${APPEALS.filter(a => a.status === 'Pending' || a.status === 'Under Review').length}</div>
+        <div class="stat-value">${pendingAppeals}</div>
         <div class="stat-meta">awaiting review</div>
       </div>
       <div class="stat-card green">
         <div class="stat-label">Active Policies</div>
-        <div class="stat-value">${POLICIES.filter(p => p.status === 'active').length}</div>
+        <div class="stat-value">${activePolicies}</div>
         <div class="stat-meta">in effect</div>
       </div>
     `;
 
     const tbody = document.getElementById('admin-violations-body');
     tbody.innerHTML = VIOLATIONS.length === 0
-      ? '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text3);">No violations. Click "Generate violations" on the Violations page to run a check.</td></tr>'
+      ? '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text3);">No violations. Load from viola.txt or run violation analysis.</td></tr>'
       : VIOLATIONS.slice(0, 5).map(v => `
       <tr>
-        <td><strong>${v.name}</strong> <span style="color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:10px;">${v.user}</span></td>
-        <td>${v.policy}</td>
-        <td><span class="severity-${(v.severity || 'medium').toLowerCase()}">${v.severity || 'Medium'}</span></td>
-        <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${v.date}</span></td>
+        <td><strong>${(v.name || '').replace(/</g, '&lt;')}</strong> <span style="color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:10px;">${(v.user || '')}</span></td>
+        <td>${(v.policy || 'Policy Violation').replace(/</g, '&lt;')}</td>
+        <td><span class="severity-${(v.severity || 'High').toLowerCase()}">${v.severity || 'High'}</span></td>
+        <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${v.date || ''}</span></td>
         <td>${statusBadge(v.status)}</td>
       </tr>
     `).join('');
 
     const feed = document.getElementById('admin-activity-feed');
-    feed.innerHTML = AUDIT_LOGS.slice(0, 6).map(l => {
+    feed.innerHTML = AUDIT_LOGS.length === 0
+      ? '<div class="empty-state"><div class="empty-icon">≡</div><div class="empty-text">No activity yet</div><div class="empty-sub">Audit log will show live actions here.</div></div>'
+      : AUDIT_LOGS.slice(0, 6).map(l => {
       const colors = { 'User Login':'var(--blue)', 'Policy Upload':'var(--gold)', 'Violation Detected':'var(--red)', 'Violation Confirmed':'var(--orange)', 'Appeal Submitted':'var(--green)' };
       return `<div class="audit-item">
         <div class="audit-dot" style="background:${colors[l.action]||'var(--text3)'}"></div>
@@ -231,7 +232,8 @@ function initDashboard() {
     document.getElementById('dash-title').innerHTML = `Welcome, <span>${name.split(' ')[0]}</span>`;
     document.getElementById('dash-sub').textContent = 'Your compliance status and activity summary.';
 
-    const score = user.score || 84;
+    const myViolationsCount = VIOLATIONS.filter(v => String(v.user) === String(currentUID)).length;
+    const score = user.score != null ? user.score : (myViolationsCount === 0 ? 90 : Math.max(50, 90 - myViolationsCount * 10));
     document.getElementById('user-score').textContent = score;
     const color = score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--gold)' : 'var(--red)';
     document.getElementById('user-score').style.color = color;
@@ -240,6 +242,7 @@ function initDashboard() {
     document.getElementById('score-ring-fill').setAttribute('stroke', color);
     document.getElementById('score-ring-fill').setAttribute('stroke-dashoffset', offset);
 
+    const myAppealsCount = APPEALS.filter(a => a.uid === currentUID).length;
     document.getElementById('dash-stats').innerHTML = `
       <div class="stat-card green">
         <div class="stat-label">Compliance Score</div>
@@ -248,24 +251,22 @@ function initDashboard() {
       </div>
       <div class="stat-card red">
         <div class="stat-label">Violations</div>
-        <div class="stat-value">${user.violations || 2}</div>
+        <div class="stat-value">${myViolationsCount}</div>
         <div class="stat-meta">total on record</div>
       </div>
       <div class="stat-card gold">
         <div class="stat-label">Warnings</div>
-        <div class="stat-value">${user.warnings || 1}</div>
+        <div class="stat-value">${user.warnings != null ? user.warnings : 0}</div>
         <div class="stat-meta">issued</div>
       </div>
       <div class="stat-card blue">
-        <div class="stat-label">Submissions</div>
-        <div class="stat-value">12</div>
-        <div class="stat-meta">this quarter</div>
+        <div class="stat-label">My Appeals</div>
+        <div class="stat-value">${myAppealsCount}</div>
+        <div class="stat-meta">submitted</div>
       </div>
     `;
 
-    document.getElementById('user-policies-list').innerHTML = POLICIES.length === 0
-      ? '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No policies yet</div></div>'
-      : POLICIES.filter(p => p.status === 'active').map(p => `
+    document.getElementById('user-policies-list').innerHTML = POLICIES.filter(p => p.status === 'active').map(p => `
       <div class="policy-card">
         <div class="policy-icon">📋</div>
         <div class="policy-info">
@@ -276,14 +277,14 @@ function initDashboard() {
       </div>
     `).join('');
 
-    const myViolations = VIOLATIONS.filter(v => String(v.user) === String(currentUID));
+    const myViolations = VIOLATIONS.filter(v => v.user === currentUID);
     document.getElementById('user-violations-mini').innerHTML = myViolations.length === 0
       ? `<div class="empty-state"><div class="empty-icon">✓</div><div class="empty-text">No violations</div><div class="empty-sub">Great compliance record!</div></div>`
       : myViolations.map(v => `
         <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
           <div>
             <div style="font-size:13px;font-weight:600;">${v.policy}</div>
-            <div style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:2px;">${v.date} · <span class="severity-${(v.severity || 'medium').toLowerCase()}">${v.severity || 'Medium'}</span></div>
+            <div style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:2px;">${v.date} · <span class="severity-${v.severity.toLowerCase()}">${v.severity}</span></div>
           </div>
           ${statusBadge(v.status)}
         </div>
@@ -297,9 +298,7 @@ function initDashboard() {
 function renderPolicyLibraryAndHistory() {
   const lib = document.getElementById('policy-library');
   if (lib) {
-    lib.innerHTML = POLICIES.length === 0
-      ? '<div class="empty-state"><div class="empty-icon">📄</div><div class="empty-text">No policies yet</div><div class="empty-sub">Upload a PDF in the form to the left.</div></div>'
-      : POLICIES.map(p => `
+    lib.innerHTML = POLICIES.map(p => `
     <div class="policy-card">
       <div class="policy-icon">📄</div>
       <div class="policy-info">
@@ -312,9 +311,7 @@ function renderPolicyLibraryAndHistory() {
 
   const tbody = document.getElementById('policy-history-body');
   if (tbody) {
-    tbody.innerHTML = POLICIES.length === 0
-      ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text3);">No policies uploaded yet.</td></tr>'
-      : POLICIES.map(p => `
+    tbody.innerHTML = POLICIES.map(p => `
     <tr>
       <td><strong>${p.title}</strong></td>
       <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${currentUID}</span></td>
@@ -330,16 +327,7 @@ function renderPolicyLibraryAndHistory() {
   }
 }
 
-async function fetchPolicies() {
-  try {
-    const res = await fetch('/api/policies');
-    const data = await res.json();
-    if (res.ok && Array.isArray(data.policies)) POLICIES = data.policies;
-  } catch (e) { console.error(e); }
-}
-
-async function initPolicies() {
-  await fetchPolicies();
+function initPolicies() {
   renderPolicyLibraryAndHistory();
 
   const fileInput = document.getElementById('policy-file-input');
@@ -410,11 +398,18 @@ async function uploadPolicy() {
       return;
     }
 
-    if (data.policy) {
-      POLICIES.unshift({ ...data.policy, filename: data.filename, extractedText: data.extracted_text || '' });
-    } else {
-      await fetchPolicies();
-    }
+    const newId = 'P' + String(POLICIES.length + 1).padStart(3, '0');
+    const today = now().split(' ')[0];
+    POLICIES.unshift({
+      id: newId,
+      title: title,
+      date: today,
+      version: 'v1.0',
+      status: 'active',
+      filename: data.filename,
+      extractedText: data.extracted_text || ''
+    });
+    console.log(POLICIES)
 
     showToast('✓ Policy "' + title + '" uploaded and processed. ' + (data.page_count ? data.page_count + ' pages extracted.' : ''));
     AUDIT_LOGS.unshift({ ts: now(), actor: currentUID, action: 'Policy Upload', target: title + ' (PDF extracted)', ip: '192.168.1.40' });
@@ -432,6 +427,68 @@ async function uploadPolicy() {
     console.error(err);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = originalText; }
+  }
+}
+
+/** Load violations from viola.txt via GET /api/violations (used for violation monitor and appeal dropdown). */
+async function loadViolationsFromViola() {
+  try {
+    const res = await fetch('/api/violations');
+    const data = await res.json();
+    if (res.ok && data.success && Array.isArray(data.violations)) {
+      VIOLATIONS.splice(0, VIOLATIONS.length, ...data.violations);
+    }
+  } catch (err) {
+    console.warn('Could not load violations from API:', err);
+  }
+}
+
+async function generateViolationsFromAPI() {
+  if (currentRole !== 'admin') {
+    showToast('⚠ Only admins can run violation analysis.');
+    return;
+  }
+
+  const btn = document.getElementById('generate-violations-btn');
+  const originalText = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Running analysis...';
+  }
+
+  try {
+    const res = await fetch('/api/generate-violations', { method: 'POST' });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      showToast('⚠ ' + (data.error || 'Failed to generate violations.'));
+      return;
+    }
+
+    // Replace in-place so references remain valid
+    VIOLATIONS.splice(0, VIOLATIONS.length, ...(data.violations || []));
+
+    // Refresh violations table and admin dashboard widgets
+    renderViolationsTable(VIOLATIONS);
+    initDashboard();
+
+    AUDIT_LOGS.unshift({
+      ts: now(),
+      actor: currentUID,
+      action: 'Violation Detected',
+      target: `${VIOLATIONS.length} live violations generated`,
+      ip: '192.168.1.40'
+    });
+
+    showToast(`✓ Loaded ${VIOLATIONS.length} live violations.`);
+  } catch (err) {
+    console.error(err);
+    showToast('⚠ Failed to contact analysis API.');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
   }
 }
 
@@ -471,25 +528,12 @@ function policyStatusBadge(status) {
   return map[status] || 'badge-gray';
 }
 
-async function togglePolicyStatus(policyId) {
+function togglePolicyStatus(policyId) {
   const p = POLICIES.find(x => x.id === policyId);
   if (!p) return;
-  const newStatus = p.status === 'active' ? 'suspended' : 'active';
-  try {
-    const res = await fetch('/api/policies/' + encodeURIComponent(policyId), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus })
-    });
-    const data = await res.json();
-    if (!res.ok) { showToast('⚠ ' + (data.error || 'Update failed.')); return; }
-    p.status = newStatus;
-    renderPolicyLibraryAndHistory();
-    showToast(`✓ Policy "${p.title}" ${p.status}.`);
-  } catch (e) {
-    showToast('⚠ Update failed.');
-    console.error(e);
-  }
+  p.status = p.status === 'active' ? 'suspended' : 'active';
+  renderPolicyLibraryAndHistory();
+  showToast(`✓ Policy "${p.title}" ${p.status}.`);
 }
 
 function downloadPolicy(policyId) {
@@ -509,73 +553,26 @@ function downloadPolicy(policyId) {
 // ═══════════════════════════════
 // VIOLATIONS
 // ═══════════════════════════════
-async function fetchViolations() {
-  try {
-    const res = await fetch('/api/violations');
-    const data = await res.json();
-    if (res.ok && Array.isArray(data.violations)) VIOLATIONS = data.violations;
-  } catch (e) { console.error(e); }
-}
-
-function fillViolationFilters() {
-  const sel = document.getElementById('filter-policy');
-  if (!sel || currentRole !== 'admin') return;
-  const policies = [...new Set(VIOLATIONS.map(v => v.policy).filter(Boolean))];
-  sel.innerHTML = '<option value="">All Policies</option>' + policies.map(p => `<option value="${p.replace(/"/g, '&quot;')}">${p}</option>`).join('');
-}
-
-async function initViolations() {
-  await fetchViolations();
-  fillViolationFilters();
+function initViolations() {
   renderViolationsTable(VIOLATIONS);
-}
-
-async function generateViolations() {
-  const btn = document.getElementById('generate-violations-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
-  try {
-    const res = await fetch('/api/generate-violations', { method: 'POST' });
-    const data = await res.json();
-    if (!res.ok) {
-      showToast('⚠ ' + (data.error || 'Failed to generate violations.'));
-      return;
-    }
-    if (Array.isArray(data.violations)) VIOLATIONS = data.violations;
-    fillViolationFilters();
-    renderViolationsTable(VIOLATIONS);
-    showToast('✓ ' + (data.message || 'Violations generated.'));
-    initDashboard(); // refresh dashboard stats
-  } catch (e) {
-    showToast('⚠ Request failed. Is the server running?');
-    console.error(e);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Generate violations (API)'; }
-  }
 }
 
 function renderViolationsTable(data) {
   const isAdmin = currentRole === 'admin';
-  const myData = isAdmin ? data : data.filter(v => String(v.user) === String(currentUID));
+  const myData = isAdmin ? data : data.filter(v => v.user === currentUID);
   const col = document.getElementById('violations-action-col');
   if (col) col.textContent = isAdmin ? 'Action' : 'Details';
 
-  const tbody = document.getElementById('violations-tbody');
-  if (!tbody) return;
-  if (myData.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text3);">' +
-      (isAdmin ? 'No violations. Click "Generate violations (API)" to run a compliance check.' : 'No violations on record.') + '</td></tr>';
-    return;
-  }
-  tbody.innerHTML = myData.map(v => `
+  document.getElementById('violations-tbody').innerHTML = myData.map(v => `
     <tr>
       <td><span class="mono" style="color:var(--gold);font-size:11px;">${v.id}</span></td>
       <td>
         ${isAdmin ? `<strong>${v.name}</strong> <span style="color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:10px;">${v.user}</span>` : `<span style="color:var(--text)">${v.user}</span>`}
       </td>
-      <td>${v.policy}</td>
-      <td><span class="severity-${(v.severity || 'medium').toLowerCase()}">${v.severity || 'Medium'}</span></td>
-      <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${v.date}</span></td>
-      <td>${statusBadge(v.status)}</td>
+      <td>${v.policy || 'Policy Violation'}</td>
+      <td><span class="severity-${(v.severity || 'High').toLowerCase()}">${v.severity || 'High'}</span></td>
+      <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${v.date || ''}</span></td>
+      <td>${statusBadge(v.status || 'Confirmed')}</td>
       <td>
         ${isAdmin ? `
           <div style="display:flex;gap:4px;">
@@ -589,23 +586,9 @@ function renderViolationsTable(data) {
   `).join('');
 }
 
-async function markViolation(id, status) {
-  try {
-    const res = await fetch('/api/violations/' + encodeURIComponent(id), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
-    });
-    const data = await res.json();
-    if (!res.ok) { showToast('⚠ ' + (data.error || 'Update failed.')); return; }
-    const v = VIOLATIONS.find(x => x.id === id);
-    if (v) v.status = status;
-    renderViolationsTable(VIOLATIONS);
-    showToast(`✓ Violation ${id} marked as ${status}.`);
-  } catch (e) {
-    showToast('⚠ Update failed.');
-    console.error(e);
-  }
+function markViolation(id, status) {
+  const v = VIOLATIONS.find(x => x.id === id);
+  if (v) { v.status = status; renderViolationsTable(VIOLATIONS); showToast(`✓ Violation ${id} marked as ${status}.`); }
 }
 
 function filterViolations() {
@@ -626,6 +609,14 @@ function filterViolations() {
 // APPEALS
 // ═══════════════════════════════
 function initAppeals() {
+  // Populate appeal violation dropdown with live data (only current user's violations)
+  const sel = document.getElementById('appeal-violation-select');
+  if (sel && currentRole === 'user') {
+    const myViolations = VIOLATIONS.filter(v => String(v.user) === String(currentUID));
+    sel.innerHTML = '<option value="">Select a violation...</option>' + myViolations.map(v =>
+      `<option value="${v.id}">${v.id} — ${(v.policy || 'Policy Violation')} (${v.severity || 'High'})</option>`
+    ).join('');
+  }
   renderAppealsTable();
 }
 
@@ -865,10 +856,13 @@ function initAudit() {
 
   const actions = {};
   AUDIT_LOGS.forEach(l => actions[l.action] = (actions[l.action] || 0) + 1);
-  const maxVal = Math.max(...Object.values(actions));
+  const counts = Object.values(actions);
+  const maxVal = counts.length ? Math.max(...counts) : 1;
   const colors2 = { 'User Login':'var(--blue)', 'Policy Upload':'var(--gold)', 'Violation Detected':'var(--red)', 'Violation Confirmed':'var(--orange)', 'Appeal Submitted':'var(--green)' };
 
-  document.getElementById('audit-distribution').innerHTML = Object.entries(actions).map(([action, count]) => `
+  document.getElementById('audit-distribution').innerHTML = Object.keys(actions).length === 0
+    ? '<div class="empty-state"><div class="empty-sub">No activity yet. Audit log shows live actions.</div></div>'
+    : Object.entries(actions).map(([action, count]) => `
     <div style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;">
         <span>${action}</span>

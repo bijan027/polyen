@@ -1,0 +1,20 @@
+Employee_ID,Name,Working_Days,Target_Sales,Actual_Sales,Customer_Satisfaction_Score,Reason for Violation,Violated by how much
+1,Ahmed Tariq,21,14435,19470,2.3,Attendance below 80%,2.2 days
+2,Usman Iqbal,18,9998,9968,3.0,Attendance below 80%, Sales target not met,5.2 days, 30
+5,Ahmed Malik,25,8291,6076,3.7,Sales target not met,2215
+6,Ali Chaudhry,22,13461,6994,2.2,Attendance below 80%, Sales target not met,1.2 days, 6467
+8,Fatima Chaudhry,19,5905,18466,4.1,Attendance below 80%,4.2 days
+9,Bilal Javed,21,16663,18523,2.4,Attendance below 80%,2.2 days
+10,Zain Malik,24,16445,9594,3.9,Sales target not met,6851
+11,Ali Raza,26,19298,6035,3.7,Sales target not met,13263
+12,Ali Iqbal,16,5689,14164,3.5,Attendance below 80%,7.2 days
+15,Hassan Iqbal,22,5581,17990,3.7,Attendance below 80%,1.2 days
+16,Hassan Raza,19,10675,18083,4.8,Attendance below 80%,4.2 days
+17,Aisha Javed,20,19531,14291,3.7,Attendance below 80%, Sales target not met,3.2 days, 5240
+18,Zain Chaudhry,22,19124,11954,3.3,Attendance below 80%, Sales target not met,1.2 days, 7170
+19,Sara Butt,22,10347,11269,4.1,Attendance below 80%,1.2 days
+20,Usman Iqbal,17,14911,11130,3.4,Attendance below 80%, Sales target not met,6.2 days, 3781
+21,Maira Butt,20,18930,10828,4.4,Attendance below 80%, Sales target not met,3.2 days, 8102
+22,Ahmed Iqbal,19,7643,12844,2.5,Attendance below 80%,4.2 days
+23,Aisha Malik,16,13017,18220,4.9,Attendance below 80%,7.2 days
+24,Usman Chaudhry,22,7297,10331,3.2,Attendance below 80%,1.2 days
