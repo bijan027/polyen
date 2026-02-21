@@ -12,21 +12,9 @@ const USERS = {
   '20055': { name: 'Sam Rivera', role: 'user', score: 61, violations: 4, warnings: 3 },
 };
 
-const POLICIES = [
-  { id: 'P001', title: 'Data Protection Policy', date: '2024-09-15', version: 'v3.2', status: 'active' },
-  { id: 'P002', title: 'Security Protocol Guidelines', date: '2024-08-01', version: 'v2.1', status: 'active' },
-  { id: 'P003', title: 'Code of Conduct', date: '2024-07-20', version: 'v4.0', status: 'active' },
-  { id: 'P004', title: 'Access Control Framework', date: '2024-06-10', version: 'v1.5', status: 'superseded' },
-];
-
-const VIOLATIONS = [
-  { id: 'V001', user: '20087', name: 'Alex Turner', policy: 'Data Protection', severity: 'High', date: '2024-10-18', status: 'Confirmed' },
-  { id: 'V002', user: '20087', name: 'Alex Turner', policy: 'Security Protocol', severity: 'Medium', date: '2024-10-10', status: 'Under Review' },
-  { id: 'V003', user: '20055', name: 'Sam Rivera', policy: 'Code of Conduct', severity: 'High', date: '2024-10-05', status: 'Confirmed' },
-  { id: 'V004', user: '20055', name: 'Sam Rivera', policy: 'Data Protection', severity: 'High', date: '2024-09-28', status: 'Confirmed' },
-  { id: 'V005', user: '20055', name: 'Sam Rivera', policy: 'Access Control', severity: 'Medium', date: '2024-09-15', status: 'Dismissed' },
-  { id: 'V006', user: '20041', name: 'Jordan Park', policy: 'Security Protocol', severity: 'Low', date: '2024-09-01', status: 'Dismissed' },
-];
+// Live data from API — no defaults
+let POLICIES = [];
+let VIOLATIONS = [];
 
 const APPEALS = [
   { id: 'A001', violationId: 'V001', user: 'Alex Turner', uid: '20087', date: '2024-10-19', message: 'The flagged data access was part of an authorized Q4 audit.', status: 'Under Review' },
@@ -130,10 +118,10 @@ function setupApp() {
     el.style.display = currentRole === 'admin' ? 'flex' : 'none';
   });
 
-  // Init pages
+  // Init pages (async fetch live data for policies and violations)
   initDashboard();
-  initPolicies();
-  initViolations();
+  initPolicies();   // fetches /api/policies then renders
+  initViolations(); // fetches /api/violations then renders
   initAppeals();
   initPrediction();
   initAudit();
@@ -194,27 +182,29 @@ function initDashboard() {
       </div>
       <div class="stat-card red">
         <div class="stat-label">Open Violations</div>
-        <div class="stat-value">4</div>
-        <div class="stat-meta">+2 this week</div>
+        <div class="stat-value">${VIOLATIONS.length}</div>
+        <div class="stat-meta">live from API</div>
       </div>
       <div class="stat-card blue">
         <div class="stat-label">Pending Appeals</div>
-        <div class="stat-value">2</div>
+        <div class="stat-value">${APPEALS.filter(a => a.status === 'Pending' || a.status === 'Under Review').length}</div>
         <div class="stat-meta">awaiting review</div>
       </div>
       <div class="stat-card green">
         <div class="stat-label">Active Policies</div>
-        <div class="stat-value">3</div>
+        <div class="stat-value">${POLICIES.filter(p => p.status === 'active').length}</div>
         <div class="stat-meta">in effect</div>
       </div>
     `;
 
     const tbody = document.getElementById('admin-violations-body');
-    tbody.innerHTML = VIOLATIONS.slice(0, 5).map(v => `
+    tbody.innerHTML = VIOLATIONS.length === 0
+      ? '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text3);">No violations. Click "Generate violations" on the Violations page to run a check.</td></tr>'
+      : VIOLATIONS.slice(0, 5).map(v => `
       <tr>
         <td><strong>${v.name}</strong> <span style="color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:10px;">${v.user}</span></td>
         <td>${v.policy}</td>
-        <td><span class="severity-${v.severity.toLowerCase()}">${v.severity}</span></td>
+        <td><span class="severity-${(v.severity || 'medium').toLowerCase()}">${v.severity || 'Medium'}</span></td>
         <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${v.date}</span></td>
         <td>${statusBadge(v.status)}</td>
       </tr>
@@ -273,7 +263,9 @@ function initDashboard() {
       </div>
     `;
 
-    document.getElementById('user-policies-list').innerHTML = POLICIES.filter(p => p.status === 'active').map(p => `
+    document.getElementById('user-policies-list').innerHTML = POLICIES.length === 0
+      ? '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No policies yet</div></div>'
+      : POLICIES.filter(p => p.status === 'active').map(p => `
       <div class="policy-card">
         <div class="policy-icon">📋</div>
         <div class="policy-info">
@@ -284,14 +276,14 @@ function initDashboard() {
       </div>
     `).join('');
 
-    const myViolations = VIOLATIONS.filter(v => v.user === currentUID);
+    const myViolations = VIOLATIONS.filter(v => String(v.user) === String(currentUID));
     document.getElementById('user-violations-mini').innerHTML = myViolations.length === 0
       ? `<div class="empty-state"><div class="empty-icon">✓</div><div class="empty-text">No violations</div><div class="empty-sub">Great compliance record!</div></div>`
       : myViolations.map(v => `
         <div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
           <div>
             <div style="font-size:13px;font-weight:600;">${v.policy}</div>
-            <div style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:2px;">${v.date} · <span class="severity-${v.severity.toLowerCase()}">${v.severity}</span></div>
+            <div style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:2px;">${v.date} · <span class="severity-${(v.severity || 'medium').toLowerCase()}">${v.severity || 'Medium'}</span></div>
           </div>
           ${statusBadge(v.status)}
         </div>
@@ -305,7 +297,9 @@ function initDashboard() {
 function renderPolicyLibraryAndHistory() {
   const lib = document.getElementById('policy-library');
   if (lib) {
-    lib.innerHTML = POLICIES.map(p => `
+    lib.innerHTML = POLICIES.length === 0
+      ? '<div class="empty-state"><div class="empty-icon">📄</div><div class="empty-text">No policies yet</div><div class="empty-sub">Upload a PDF in the form to the left.</div></div>'
+      : POLICIES.map(p => `
     <div class="policy-card">
       <div class="policy-icon">📄</div>
       <div class="policy-info">
@@ -318,7 +312,9 @@ function renderPolicyLibraryAndHistory() {
 
   const tbody = document.getElementById('policy-history-body');
   if (tbody) {
-    tbody.innerHTML = POLICIES.map(p => `
+    tbody.innerHTML = POLICIES.length === 0
+      ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text3);">No policies uploaded yet.</td></tr>'
+      : POLICIES.map(p => `
     <tr>
       <td><strong>${p.title}</strong></td>
       <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${currentUID}</span></td>
@@ -334,7 +330,16 @@ function renderPolicyLibraryAndHistory() {
   }
 }
 
-function initPolicies() {
+async function fetchPolicies() {
+  try {
+    const res = await fetch('/api/policies');
+    const data = await res.json();
+    if (res.ok && Array.isArray(data.policies)) POLICIES = data.policies;
+  } catch (e) { console.error(e); }
+}
+
+async function initPolicies() {
+  await fetchPolicies();
   renderPolicyLibraryAndHistory();
 
   const fileInput = document.getElementById('policy-file-input');
@@ -405,18 +410,11 @@ async function uploadPolicy() {
       return;
     }
 
-    const newId = 'P' + String(POLICIES.length + 1).padStart(3, '0');
-    const today = now().split(' ')[0];
-    POLICIES.unshift({
-      id: newId,
-      title: title,
-      date: today,
-      version: 'v1.0',
-      status: 'active',
-      filename: data.filename,
-      extractedText: data.extracted_text || ''
-    });
-    console.log(POLICIES)
+    if (data.policy) {
+      POLICIES.unshift({ ...data.policy, filename: data.filename, extractedText: data.extracted_text || '' });
+    } else {
+      await fetchPolicies();
+    }
 
     showToast('✓ Policy "' + title + '" uploaded and processed. ' + (data.page_count ? data.page_count + ' pages extracted.' : ''));
     AUDIT_LOGS.unshift({ ts: now(), actor: currentUID, action: 'Policy Upload', target: title + ' (PDF extracted)', ip: '192.168.1.40' });
@@ -473,12 +471,25 @@ function policyStatusBadge(status) {
   return map[status] || 'badge-gray';
 }
 
-function togglePolicyStatus(policyId) {
+async function togglePolicyStatus(policyId) {
   const p = POLICIES.find(x => x.id === policyId);
   if (!p) return;
-  p.status = p.status === 'active' ? 'suspended' : 'active';
-  renderPolicyLibraryAndHistory();
-  showToast(`✓ Policy "${p.title}" ${p.status}.`);
+  const newStatus = p.status === 'active' ? 'suspended' : 'active';
+  try {
+    const res = await fetch('/api/policies/' + encodeURIComponent(policyId), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast('⚠ ' + (data.error || 'Update failed.')); return; }
+    p.status = newStatus;
+    renderPolicyLibraryAndHistory();
+    showToast(`✓ Policy "${p.title}" ${p.status}.`);
+  } catch (e) {
+    showToast('⚠ Update failed.');
+    console.error(e);
+  }
 }
 
 function downloadPolicy(policyId) {
@@ -498,24 +509,71 @@ function downloadPolicy(policyId) {
 // ═══════════════════════════════
 // VIOLATIONS
 // ═══════════════════════════════
-function initViolations() {
+async function fetchViolations() {
+  try {
+    const res = await fetch('/api/violations');
+    const data = await res.json();
+    if (res.ok && Array.isArray(data.violations)) VIOLATIONS = data.violations;
+  } catch (e) { console.error(e); }
+}
+
+function fillViolationFilters() {
+  const sel = document.getElementById('filter-policy');
+  if (!sel || currentRole !== 'admin') return;
+  const policies = [...new Set(VIOLATIONS.map(v => v.policy).filter(Boolean))];
+  sel.innerHTML = '<option value="">All Policies</option>' + policies.map(p => `<option value="${p.replace(/"/g, '&quot;')}">${p}</option>`).join('');
+}
+
+async function initViolations() {
+  await fetchViolations();
+  fillViolationFilters();
   renderViolationsTable(VIOLATIONS);
+}
+
+async function generateViolations() {
+  const btn = document.getElementById('generate-violations-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  try {
+    const res = await fetch('/api/generate-violations', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast('⚠ ' + (data.error || 'Failed to generate violations.'));
+      return;
+    }
+    if (Array.isArray(data.violations)) VIOLATIONS = data.violations;
+    fillViolationFilters();
+    renderViolationsTable(VIOLATIONS);
+    showToast('✓ ' + (data.message || 'Violations generated.'));
+    initDashboard(); // refresh dashboard stats
+  } catch (e) {
+    showToast('⚠ Request failed. Is the server running?');
+    console.error(e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate violations (API)'; }
+  }
 }
 
 function renderViolationsTable(data) {
   const isAdmin = currentRole === 'admin';
-  const myData = isAdmin ? data : data.filter(v => v.user === currentUID);
+  const myData = isAdmin ? data : data.filter(v => String(v.user) === String(currentUID));
   const col = document.getElementById('violations-action-col');
   if (col) col.textContent = isAdmin ? 'Action' : 'Details';
 
-  document.getElementById('violations-tbody').innerHTML = myData.map(v => `
+  const tbody = document.getElementById('violations-tbody');
+  if (!tbody) return;
+  if (myData.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text3);">' +
+      (isAdmin ? 'No violations. Click "Generate violations (API)" to run a compliance check.' : 'No violations on record.') + '</td></tr>';
+    return;
+  }
+  tbody.innerHTML = myData.map(v => `
     <tr>
       <td><span class="mono" style="color:var(--gold);font-size:11px;">${v.id}</span></td>
       <td>
         ${isAdmin ? `<strong>${v.name}</strong> <span style="color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:10px;">${v.user}</span>` : `<span style="color:var(--text)">${v.user}</span>`}
       </td>
       <td>${v.policy}</td>
-      <td><span class="severity-${v.severity.toLowerCase()}">${v.severity}</span></td>
+      <td><span class="severity-${(v.severity || 'medium').toLowerCase()}">${v.severity || 'Medium'}</span></td>
       <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">${v.date}</span></td>
       <td>${statusBadge(v.status)}</td>
       <td>
@@ -531,9 +589,23 @@ function renderViolationsTable(data) {
   `).join('');
 }
 
-function markViolation(id, status) {
-  const v = VIOLATIONS.find(x => x.id === id);
-  if (v) { v.status = status; renderViolationsTable(VIOLATIONS); showToast(`✓ Violation ${id} marked as ${status}.`); }
+async function markViolation(id, status) {
+  try {
+    const res = await fetch('/api/violations/' + encodeURIComponent(id), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast('⚠ ' + (data.error || 'Update failed.')); return; }
+    const v = VIOLATIONS.find(x => x.id === id);
+    if (v) v.status = status;
+    renderViolationsTable(VIOLATIONS);
+    showToast(`✓ Violation ${id} marked as ${status}.`);
+  } catch (e) {
+    showToast('⚠ Update failed.');
+    console.error(e);
+  }
 }
 
 function filterViolations() {

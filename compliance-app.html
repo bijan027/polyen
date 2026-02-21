@@ -275,7 +275,8 @@
           <div class="page-title">Violation <span>Monitor</span></div>
           <div class="page-sub" id="violations-sub">Detect and manage policy violations across the organization.</div>
         </div>
-        <div id="admin-violations-actions">
+        <div id="admin-violations-actions" class="admin-only" style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="generate-violations-btn" onclick="generateViolations()">Generate violations (API)</button>
           <button class="btn btn-outline" onclick="filterViolations()">Apply Filters</button>
         </div>
       </div>
@@ -284,10 +285,6 @@
         <input type="text" class="filter-input" id="filter-user" placeholder="Search by username...">
         <select class="filter-select" id="filter-policy">
           <option value="">All Policies</option>
-          <option>Data Protection</option>
-          <option>Security Protocol</option>
-          <option>Code of Conduct</option>
-          <option>Access Control</option>
         </select>
         <select class="filter-select" id="filter-status">
           <option value="">All Status</option>
