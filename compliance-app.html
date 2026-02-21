@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CompliScore — Monitoring & Prediction System</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="compliance-app.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"> 
+</head>
+<body>
+
+<!-- ═══════════════════════════════════
+     LOGIN SCREEN
+═══════════════════════════════════ -->
+<div id="screen-login" class="screen active">
+  <div class="login-grid"></div>
+  <div class="login-glow"></div>
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="logo-mark"></div>
+      <div class="login-title">C O M P L I S C O R E</div>
+    </div>
+    <div class="login-card">
+      <div class="login-heading">System Access</div>
+      <div class="login-sub">Enter your Unique ID to authenticate into the platform</div>
+      <div class="form-group">
+        <label class="form-label">Unique ID</label>
+        <input type="text" class="form-input" id="uid-input" placeholder="e.g. 10023 or 20087" maxlength="10">
+        <div class="uid-hints">
+          <div class="uid-hint admin" onclick="document.getElementById('uid-input').value='10023'">Admin: 10023</div>
+          <div class="uid-hint user" onclick="document.getElementById('uid-input').value='20087'">User: 20087</div>
+        </div>
+      </div>
+      <div class="login-error" id="login-error">⚠ Invalid Unique ID. IDs must start with 100 (Admin) or 200 (User).</div>
+      <button class="btn-login" onclick="doLogin()">Authenticate →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════
+     APP SCREEN
+═══════════════════════════════════ -->
+<div id="screen-app" class="screen">
+  <!-- TOPBAR -->
+  <nav class="topbar">
+    <div class="topbar-logo">
+      <div class="topbar-logo-mark"></div>
+      CompliScore
+    </div>
+    <div class="topbar-nav">
+      <button class="nav-btn active" onclick="showPage('dashboard')" data-page="dashboard">
+        ◈ <span>Dashboard</span>
+      </button>
+      <button class="nav-btn admin-only" onclick="showPage('policies')" data-page="policies">
+        ⬡ <span>Policies</span>
+      </button>
+      <button class="nav-btn" onclick="showPage('violations')" data-page="violations">
+        ⚠ <span>Violations</span>
+      </button>
+      <button class="nav-btn" onclick="showPage('appeals')" data-page="appeals">
+        ⟳ <span>Appeals</span><span id="appeal-notif" class="notif-dot" style="display:none"></span>
+      </button>
+      <button class="nav-btn" onclick="showPage('prediction')" data-page="prediction">
+        ◎ <span>Prediction</span>
+      </button>
+      <button class="nav-btn admin-only" onclick="showPage('audit')" data-page="audit">
+        ≡ <span>Audit Logs</span>
+      </button>
+    </div>
+    <div class="topbar-right">
+      <div class="connection user-badge" id="connection" onclick="connectDatabase()">
+        <i class="fa-solid fa-ban"></i> Not Connected
+      </div>
+      <div class="user-badge">
+        <div class="user-avatar" id="user-avatar">U</div>
+        <span id="user-id-display">—</span>
+        <span class="role-pill" id="role-pill">—</span>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <div class="app-content">
+
+    <!-- ──────────── ADMIN DASHBOARD ──────────── -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <div class="breadcrumb">CompliScore / <span>Overview</span></div>
+          <div class="page-title" id="dash-title">Welcome, <span>Administrator</span></div>
+          <div class="page-sub" id="dash-sub">System overview — all users, policies, and violations at a glance.</div>
+        </div>
+        <div id="admin-dash-actions" style="display:flex;gap:8px;">
+          <button class="btn btn-gold" onclick="showPage('policies')">+ Upload Policy</button>
+        </div>
+      </div>
+
+      <div class="stat-grid" id="dash-stats">
+        <!-- filled by JS -->
+      </div>
+
+      <!-- ADMIN: violations + activity -->
+      <div class="grid-7-5" id="admin-dash-main">
+        <div class="card">
+          <div class="card-title">Recent Violations</div>
+          <div class="scroll-x">
+            <table class="data-table" id="admin-recent-violations">
+              <thead><tr>
+                <th>User</th>
+                <th>Policy</th>
+                <th>Severity</th>
+                <th>Date</th>
+                <th>Status</th>
+              </tr></thead>
+              <tbody id="admin-violations-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Live Activity Feed</div>
+          <div id="admin-activity-feed"></div>
+        </div>
+      </div>
+
+      <!-- USER: my dashboard -->
+      <div id="user-dash-main" style="display:none;">
+        <div class="grid-7-5">
+          <div>
+            <div class="grid-2">
+              <div class="card">
+                <div class="card-title">Compliance Score</div>
+                <div class="score-container">
+                  <div class="score-ring">
+                    <svg width="140" height="140" viewBox="0 0 140 140">
+                      <circle cx="70" cy="70" r="56" fill="none" stroke="var(--surface3)" stroke-width="8"/>
+                      <circle cx="70" cy="70" r="56" fill="none" stroke="var(--green)" stroke-width="8"
+                        stroke-dasharray="352" stroke-dashoffset="56" stroke-linecap="round" id="score-ring-fill"/>
+                    </svg>
+                    <div class="score-ring-text">
+                      <div class="score-number" id="user-score" style="color:var(--green)">84</div>
+                      <div class="score-label">/ 100</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-title">My Stats</div>
+                <div style="display:flex;flex-direction:column;gap:16px;padding-top:8px;">
+                  <div>
+                    <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Active Violations</div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--red)">2</div>
+                  </div>
+                  <div>
+                    <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Warnings</div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--orange)">1</div>
+                  </div>
+                  <div>
+                    <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Open Appeals</div>
+                    <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--blue)">1</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">Work Submissions</div>
+              <div class="scroll-x">
+                <table class="data-table">
+                  <thead><tr>
+                    <th>Title</th>
+                    <th>Submitted</th>
+                    <th>Status</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr>
+                      <td>Q3 Security Audit Report</td>
+                      <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">2024-10-01</span></td>
+                      <td><span class="badge badge-green">Approved</span></td>
+                    </tr>
+                    <tr>
+                      <td>Access Control Review</td>
+                      <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">2024-10-08</span></td>
+                      <td><span class="badge badge-red">Flagged</span></td>
+                    </tr>
+                    <tr>
+                      <td>Onboarding Compliance Docs</td>
+                      <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">2024-10-15</span></td>
+                      <td><span class="badge badge-green">Approved</span></td>
+                    </tr>
+                    <tr>
+                      <td>Data Handling Policy Sign-off</td>
+                      <td><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">2024-10-20</span></td>
+                      <td><span class="badge badge-gold">Pending</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:20px;">
+            <div class="card">
+              <div class="card-title">Assigned Policies</div>
+              <div id="user-policies-list"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">Recent Violations</div>
+              <div id="user-violations-mini"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────────── POLICIES PAGE (Admin) ──────────── -->
+    <div class="page" id="page-policies">
+      <div class="page-header">
+        <div>
+          <div class="breadcrumb">CompliScore / <span>Policies</span></div>
+          <div class="page-title">Policy <span>Management</span></div>
+          <div class="page-sub">Upload, manage and distribute compliance policy documents.</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Upload New Policy</div>
+          <div class="form-row">
+            <label class="form-label">Policy Title</label>
+            <input type="text" class="form-input" id="policy-title-input" placeholder="e.g. Data Protection Policy 2024" style="letter-spacing:0;">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Document File (PDF)</label>
+            <div class="upload-zone" id="policy-upload-zone" onclick="openPolicyFileDialog(event)">
+              <div class="upload-icon">📄</div>
+              <div class="upload-label">Drop PDF here or click to browse</div>
+              <div class="upload-sub">Supported: .pdf — Max 10MB</div>
+            </div>
+            <input type="file" id="policy-file-input" accept="application/pdf" style="display:none;">
+            <div class="upload-sub" id="policy-file-name" style="margin-top:8px;text-align:left;">No file selected.</div>
+          </div>
+          <button class="btn btn-gold" onclick="uploadPolicy()" style="width:100%;padding:12px;font-size:12px;">Upload Policy Document</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Policy Library</div>
+          <div id="policy-library"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Upload History</div>
+        <div class="scroll-x">
+          <table class="data-table" id="policy-history-table">
+            <thead><tr>
+              <th>Policy</th>
+              <th>Uploaded By</th>
+              <th>Date</th>
+              <th>Version</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr></thead>
+            <tbody id="policy-history-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────────── VIOLATIONS PAGE ──────────── -->
+    <div class="page" id="page-violations">
+      <div class="page-header">
+        <div>
+          <div class="breadcrumb">CompliScore / <span>Violations</span></div>
+          <div class="page-title">Violation <span>Monitor</span></div>
+          <div class="page-sub" id="violations-sub">Detect and manage policy violations across the organization.</div>
+        </div>
+        <div id="admin-violations-actions">
+          <button class="btn btn-outline" onclick="filterViolations()">Apply Filters</button>
+        </div>
+      </div>
+
+      <div id="admin-filters" class="filter-row">
+        <input type="text" class="filter-input" id="filter-user" placeholder="Search by username...">
+        <select class="filter-select" id="filter-policy">
+          <option value="">All Policies</option>
+          <option>Data Protection</option>
+          <option>Security Protocol</option>
+          <option>Code of Conduct</option>
+          <option>Access Control</option>
+        </select>
+        <select class="filter-select" id="filter-status">
+          <option value="">All Status</option>
+          <option>Confirmed</option>
+          <option>Dismissed</option>
+          <option>Under Review</option>
+        </select>
+        <select class="filter-select" id="filter-severity">
+          <option value="">All Severity</option>
+          <option>High</option>
+          <option>Medium</option>
+          <option>Low</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <div class="scroll-x">
+          <table class="data-table">
+            <thead><tr>
+              <th>#</th>
+              <th>User</th>
+              <th>Policy</th>
+              <th>Severity</th>
+              <th>Date</th>
+              <th>Status</th>
+              <th id="violations-action-col">Action</th>
+            </tr></thead>
+            <tbody id="violations-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────────── APPEALS PAGE ──────────── -->
+    <div class="page" id="page-appeals">
+      <div class="page-header">
+        <div>
+          <div class="breadcrumb">CompliScore / <span>Appeals</span></div>
+          <div class="page-title">Appeal <span>Workflow</span></div>
+          <div class="page-sub" id="appeals-sub">Submit and track your violation appeals.</div>
+        </div>
+      </div>
+
+      <!-- USER: submit appeal form -->
+      <div id="user-appeal-form">
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-title">Submit New Appeal</div>
+          <div class="form-row">
+            <label class="form-label">Violation ID</label>
+            <select class="form-input" id="appeal-violation-select" style="letter-spacing:0;">
+              <option value="">Select a violation...</option>
+              <option value="V001">V001 — Data Protection Policy (High)</option>
+              <option value="V002">V002 — Security Protocol (Medium)</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">Explanation</label>
+            <textarea class="form-textarea" id="appeal-message" placeholder="Describe your grounds for appeal and any relevant context..."></textarea>
+          </div>
+          <div class="form-row">
+            <label class="form-label">Supporting Notes</label>
+            <textarea class="form-textarea" id="appeal-notes" placeholder="Any additional evidence or references..." style="min-height:70px;"></textarea>
+          </div>
+          <button class="btn btn-gold" onclick="submitAppeal()">Submit Appeal Request</button>
+        </div>
+      </div>
+
+      <!-- Appeals table (shared) -->
+      <div class="card">
+        <div class="card-title" id="appeals-table-title">My Appeals</div>
+        <div class="scroll-x">
+          <table class="data-table">
+            <thead><tr>
+              <th>Appeal ID</th>
+              <th>Violation</th>
+              <th>User</th>
+              <th>Submitted</th>
+              <th>Message</th>
+              <th>Status</th>
+              <th id="appeals-action-col">Decision</th>
+            </tr></thead>
+            <tbody id="appeals-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────────── PREDICTION PAGE ──────────── -->
+    <div class="page" id="page-prediction">
+      <div class="page-header">
+        <div>
+          <div class="breadcrumb">CompliScore / <span>Risk Analytics</span></div>
+          <div class="page-title">Prediction <span>Engine</span></div>
+          <div class="page-sub">Risk probability modeling based on historical behavioral data.</div>
+        </div>
+        <div id="admin-pred-select" style="display:flex;align-items:center;gap:8px;">
+          <label style="font-size:11px;color:var(--text2);letter-spacing:1px;">Analyze User:</label>
+          <select class="filter-select" id="pred-user-select" onchange="updatePrediction()">
+            <option value="20087">20087 — Alex Turner</option>
+            <option value="20041">20041 — Jordan Park</option>
+            <option value="20055">20055 — Sam Rivera</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-3" style="margin-bottom:24px;">
+        <div style="grid-column:1/2;">
+          <div class="card" style="text-align:center;padding:32px 24px;">
+            <div class="card-title" style="justify-content:center;">Risk Probability</div>
+            <div class="risk-gauge" id="risk-gauge-container">
+              <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                <!-- gauge arcs -->
+                <path d="M 20 100 A 80 80 0 0 1 60 30" fill="none" stroke="var(--green)" stroke-width="12" stroke-linecap="round"/>
+                <path d="M 60 30 A 80 80 0 0 1 140 30" fill="none" stroke="var(--gold)" stroke-width="12" stroke-linecap="round"/>
+                <path d="M 140 30 A 80 80 0 0 1 180 100" fill="none" stroke="var(--red)" stroke-width="12" stroke-linecap="round"/>
+              </svg>
+              <div class="risk-needle" id="risk-needle" style="transform: translateX(-50%) rotate(-80deg);"></div>
+              <div class="risk-center"></div>
+            </div>
+            <div class="risk-value-display">
+              <div class="risk-percent" id="risk-percent" style="color:var(--orange)">72%</div>
+              <div class="risk-category badge badge-orange" id="risk-category" style="display:inline-flex;margin-top:8px;">HIGH RISK</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="grid-column:2/4;">
+          <div class="card" style="height:100%;">
+            <div class="card-title">Risk Factor Breakdown</div>
+            <div id="risk-factors"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">User Risk Summary</div>
+          <div id="risk-summary"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Recommendations</div>
+          <div id="risk-recommendations"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ──────────── AUDIT LOGS PAGE (Admin) ──────────── -->
+    <div class="page" id="page-audit">
+      <div class="page-header">
+        <div>
+          <div class="breadcrumb">CompliScore / <span>Audit</span></div>
+          <div class="page-title">Audit <span>Logs</span></div>
+          <div class="page-sub">Complete activity history for compliance and forensic review.</div>
+        </div>
+        <button class="btn btn-outline">Export CSV</button>
+      </div>
+
+      <div class="filter-row">
+        <input type="text" class="filter-input" placeholder="Search actions, users...">
+        <select class="filter-select">
+          <option>All Actions</option>
+          <option>Login</option>
+          <option>Policy Upload</option>
+          <option>Violation Detected</option>
+          <option>Appeal Submitted</option>
+          <option>Admin Decision</option>
+        </select>
+        <select class="filter-select">
+          <option>All Time</option>
+          <option>Today</option>
+          <option>This Week</option>
+          <option>This Month</option>
+        </select>
+      </div>
+
+      <div class="grid-7-5">
+        <div class="card">
+          <div class="card-title">Activity Log</div>
+          <div class="scroll-x">
+            <table class="data-table">
+              <thead><tr>
+                <th>Timestamp</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Target</th>
+                <th>IP</th>
+              </tr></thead>
+              <tbody id="audit-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Action Distribution</div>
+          <div id="audit-distribution"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /app-content -->
+</div><!-- /screen-app -->
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- APPEAL DETAIL MODAL -->
+<div class="modal-backdrop" id="appeal-modal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Appeal Details</div>
+      <button class="modal-close" onclick="closeAppealModal()">×</button>
+    </div>
+    <div class="modal-body" id="appeal-modal-body"></div>
+  </div>
+</div>
+
+<script src="compliance-app.js"></script>
+</body>
+</html>
