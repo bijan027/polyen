@@ -380,33 +380,60 @@ function initPolicies() {
   }
 }
 
-function uploadPolicy() {
+async function uploadPolicy() {
   const title = document.getElementById('policy-title-input').value.trim();
   if (!title) { showToast('⚠ Please enter a policy title.'); return; }
   if (!selectedPolicyFile) { showToast('⚠ Please choose a PDF file.'); return; }
 
-  const newId = 'P' + String(POLICIES.length + 1).padStart(3, '0');
-  const today = now().split(' ')[0];
-  POLICIES.unshift({
-    id: newId,
-    title: title,
-    date: today,
-    version: 'v1.0',
-    status: 'active'
-  });
+  const btn = document.getElementById('policy-upload-btn');
+  const originalText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Uploading...'; }
 
-  showToast('✓ Policy "' + title + `" (${selectedPolicyFile.name}) uploaded successfully.`);
-  AUDIT_LOGS.unshift({ ts: now(), actor: currentUID, action: 'Policy Upload', target: title, ip: '192.168.1.40' });
+  const formData = new FormData();
+  formData.append('file', selectedPolicyFile);
+  formData.append('title', title);
 
-  renderPolicyLibraryAndHistory();
+  try {
+    const res = await fetch('/api/upload-policy', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
 
-  document.getElementById('policy-title-input').value = '';
-  const fileInput = document.getElementById('policy-file-input');
-  const fileNameEl = document.getElementById('policy-file-name');
-  if (fileInput) fileInput.value = '';
-  selectedPolicyFile = null;
-  if (fileNameEl) {
-    fileNameEl.textContent = 'No file selected.';
+    if (!res.ok) {
+      showToast('⚠ ' + (data.error || 'Upload failed.'));
+      return;
+    }
+
+    const newId = 'P' + String(POLICIES.length + 1).padStart(3, '0');
+    const today = now().split(' ')[0];
+    POLICIES.unshift({
+      id: newId,
+      title: title,
+      date: today,
+      version: 'v1.0',
+      status: 'active',
+      filename: data.filename,
+      extractedText: data.extracted_text || ''
+    });
+    console.log(POLICIES)
+
+    showToast('✓ Policy "' + title + '" uploaded and processed. ' + (data.page_count ? data.page_count + ' pages extracted.' : ''));
+    AUDIT_LOGS.unshift({ ts: now(), actor: currentUID, action: 'Policy Upload', target: title + ' (PDF extracted)', ip: '192.168.1.40' });
+
+    renderPolicyLibraryAndHistory();
+
+    document.getElementById('policy-title-input').value = '';
+    const fileInput = document.getElementById('policy-file-input');
+    const fileNameEl = document.getElementById('policy-file-name');
+    if (fileInput) fileInput.value = '';
+    selectedPolicyFile = null;
+    if (fileNameEl) fileNameEl.textContent = 'No file selected.';
+  } catch (err) {
+    showToast('⚠ Upload failed. Is the server running?');
+    console.error(err);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalText; }
   }
 }
 
