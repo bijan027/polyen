@@ -21,6 +21,11 @@ A compliance monitoring system that reads company policies uploaded by admins, d
 - **Backend:** Python, Flask
 - **AI:** Google Generative AI (Gemini)
 
+
+---
+
+Currently, this project is designed for a small amount of data. To achieve scalability and efficiently handle large datasets, we need to store semantic embeddings in a vector database, which helps reduce processing time and API usage.
+
 ---
 
 ## Prerequisites
