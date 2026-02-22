@@ -1,20 +1,24 @@
-Employee_ID,Name,Working_Days,Target_Sales,Actual_Sales,Customer_Satisfaction_Score,Reason for Violation,Violated by how much
-1,Ahmed Tariq,21,14435,19470,2.3,Attendance below 80%,2.2 days
-2,Usman Iqbal,18,9998,9968,3.0,Attendance below 80%, Sales target not met,5.2 days, 30
-5,Ahmed Malik,25,8291,6076,3.7,Sales target not met,2215
-6,Ali Chaudhry,22,13461,6994,2.2,Attendance below 80%, Sales target not met,1.2 days, 6467
-8,Fatima Chaudhry,19,5905,18466,4.1,Attendance below 80%,4.2 days
-9,Bilal Javed,21,16663,18523,2.4,Attendance below 80%,2.2 days
-10,Zain Malik,24,16445,9594,3.9,Sales target not met,6851
-11,Ali Raza,26,19298,6035,3.7,Sales target not met,13263
-12,Ali Iqbal,16,5689,14164,3.5,Attendance below 80%,7.2 days
-15,Hassan Iqbal,22,5581,17990,3.7,Attendance below 80%,1.2 days
-16,Hassan Raza,19,10675,18083,4.8,Attendance below 80%,4.2 days
-17,Aisha Javed,20,19531,14291,3.7,Attendance below 80%, Sales target not met,3.2 days, 5240
-18,Zain Chaudhry,22,19124,11954,3.3,Attendance below 80%, Sales target not met,1.2 days, 7170
-19,Sara Butt,22,10347,11269,4.1,Attendance below 80%,1.2 days
-20,Usman Iqbal,17,14911,11130,3.4,Attendance below 80%, Sales target not met,6.2 days, 3781
-21,Maira Butt,20,18930,10828,4.4,Attendance below 80%, Sales target not met,3.2 days, 8102
-22,Ahmed Iqbal,19,7643,12844,2.5,Attendance below 80%,4.2 days
-23,Aisha Malik,16,13017,18220,4.9,Attendance below 80%,7.2 days
-24,Usman Chaudhry,22,7297,10331,3.2,Attendance below 80%,1.2 days
+Employee_ID,Name,Working_Days,Target_Sales,Actual_Sales,Customer_Satisfaction_Score#,Reason for Violation,Violated by how much
+1,Ahmed Tariq,21,14435,19470,2.3#,CSAT rating below 3.5,1.2 points
+2,Usman Iqbal,18,9998,9968,3#,Attendance Rate below 70%; CSAT rating below 3.5,2.3 days; 0.5 points
+3,Fatima Khan,27,5162,11493,3.3#,CSAT rating below 3.5,0.2 points
+4,Zain Tariq,29,6974,8103,2.8#,CSAT rating below 3.5,0.7 points
+5,Ahmed Malik,25,8291,6076,3.7#,Sales Target achievement below 90%,1385.90
+6,Ali Chaudhry,22,13461,6994,2.2#,Sales Target achievement below 90%; CSAT rating below 3.5,5120.90; 1.3 points
+7,Usman Raza,27,5631,7744,2.4#,CSAT rating below 3.5,1.1 points
+8,Fatima Chaudhry,19,5905,18466,4.1#,Attendance Rate below 70%,1.3 days
+9,Bilal Javed,21,16663,18523,2.4#,CSAT rating below 3.5,1.1 points
+10,Zain Malik,24,16445,9594,3.9#,Sales Target achievement below 90%,5206.50
+11,Ali Raza,26,19298,6035,3.7#,Sales Target achievement below 90%,11333.20
+12,Ali Iqbal,16,5689,14164,3.5#,Attendance Rate below 70%,4.3 days
+13,Sara Khan,25,12896,18547,2.5#,CSAT rating below 3.5,1.0 points
+14,Fatima Nadeem,25,5204,7144,2.3#,CSAT rating below 3.5,1.2 points
+16,Hassan Raza,19,10675,18083,4.8#,Attendance Rate below 70%,1.3 days
+17,Aisha Javed,20,19531,14291,3.7#,Attendance Rate below 70%; Sales Target achievement below 90%,0.3 days; 3286.90
+18,Zain Chaudhry,22,19124,11954,3.3#,Sales Target achievement below 90%; CSAT rating below 3.5,5257.60; 0.2 points
+20,Usman Iqbal,17,14911,11130,3.4#,Attendance Rate below 70%; Sales Target achievement below 90%; CSAT rating below 3.5,3.3 days; 2289.90; 0.1 points
+21,Maira Butt,20,18930,10828,4.4#,Attendance Rate below 70%; Sales Target achievement below 90%,0.3 days; 6209.00
+22,Ahmed Iqbal,19,7643,12844,2.5#,Attendance Rate below 70%; CSAT rating below 3.5,1.3 days; 1.0 points
+23,Aisha Malik,16,13017,18220,4.9#,Attendance Rate below 70%,4.3 days
+24,Usman Chaudhry,22,7297,10331,3.2#,CSAT rating below 3.5,0.3 points
+25,Sara Raza,26,5874,17397,3#,CSAT rating below 3.5,0.5 points
