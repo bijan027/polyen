@@ -4,12 +4,23 @@
 let currentRole = null;
 let currentUID = null;
 
+// Built-in demo users + employee accounts mapped from the provided database.
+// Employee IDs (e.g. "1", "2", "5") are taken directly from records.csv / viola.txt
+// so that their live violations feed into the user dashboard in real time.
 const USERS = {
   '10023': { name: 'Admin User', role: 'admin', initials: 'AU' },
   '10045': { name: 'Sarah Admin', role: 'admin', initials: 'SA' },
+
+  // Existing sample end-users
   '20087': { name: 'Alex Turner', role: 'user', score: 84, violations: 2, warnings: 1 },
   '20041': { name: 'Jordan Park', role: 'user', score: 91, violations: 0, warnings: 0 },
   '20055': { name: 'Sam Rivera', role: 'user', score: 61, violations: 4, warnings: 3 },
+
+  // Employee accounts derived from the provided dataset (records.csv / viola.txt)
+  // Use the Employee_ID as the login UID so violations map 1:1 to these users.
+  '1':  { name: 'Ahmed Tariq',  role: 'user', score: 78, warnings: 0 },
+  '2':  { name: 'Usman Iqbal',  role: 'user', score: 72, warnings: 1 },
+  '5':  { name: 'Ahmed Malik',  role: 'user', score: 80, warnings: 0 },
 };
 
 const POLICIES = [];
@@ -21,6 +32,8 @@ const APPEALS = [];
 const AUDIT_LOGS = [];
 
 let selectedPolicyFile = null;
+let selectedRecordsFile = null;
+let selectedViolationsFile = null;
 
 // ═══════════════════════════════
 // AUTH
@@ -51,9 +64,15 @@ function doLogin() {
 }
 
 function connectDatabase(){
+  // Only admins are allowed to manage database connections.
+  if (currentRole !== 'admin') {
+    showToast('⚠ Only admins can configure the database connection.');
+    return;
+  }
+
   console.log(document.getElementById('connection').innerText);
   if(document.getElementById('connection').innerText == 'Not Connected'){
-      let api = prompt("Enter your cloud API");
+      let api = prompt("Enter your database connection string / cloud API:");
       if(api.length > 2){
           console.log(api);
           document.getElementById('connection').innerHTML = '<i class="fa-solid fa-hourglass"></i> Connecting';
@@ -86,6 +105,10 @@ function doLogout() {
   document.getElementById('screen-app').classList.remove('active');
   document.getElementById('screen-login').classList.add('active');
   document.getElementById('uid-input').value = '';
+  const conn = document.getElementById('connection');
+  if (conn) {
+    conn.style.display = 'inline-flex';
+  }
 }
 
 // ═══════════════════════════════
@@ -113,6 +136,7 @@ function setupApp() {
   initAppeals();
   initPrediction();
   initAudit();
+  initDatabasePage && initDatabasePage();
   // Load violations from viola.txt and refresh violation-dependent views
   loadViolationsFromViola().then(() => {
     initDashboard();
@@ -128,7 +152,11 @@ function setupApp() {
     document.getElementById('violations-sub').textContent = 'Your compliance violations and their current status.';
     document.getElementById('admin-filters').style.display = 'none';
     document.getElementById('admin-pred-select').style.display = 'none';
-    document.getElementById('connection').style.display = 'none';
+    // Regular users shouldn't manage DB connections, so hide the chip.
+    const connUser = document.getElementById('connection');
+    if (connUser) {
+      connUser.style.display = 'none';
+    }
   } else {
     document.getElementById('user-appeal-form').style.display = 'none';
     document.getElementById('appeals-sub').textContent = 'Review and decide on submitted violation appeals.';
@@ -136,6 +164,11 @@ function setupApp() {
     document.getElementById('violations-sub').textContent = 'Detect and manage policy violations across the organization.';
     document.getElementById('admin-filters').style.display = 'flex';
     document.getElementById('admin-pred-select').style.display = 'flex';
+    // Ensure DB connection status chip is visible for admins even after a user has logged in previously.
+    const conn = document.getElementById('connection');
+    if (conn) {
+      conn.style.display = 'inline-flex';
+    }
   }
 
   // Check pending appeals
@@ -266,6 +299,25 @@ function initDashboard() {
       </div>
     `;
 
+    const myOpenAppealsCount = APPEALS.filter(a => a.uid === currentUID && (a.status === 'Pending' || a.status === 'Under Review')).length;
+    const myStatsEl = document.getElementById('user-my-stats');
+    if (myStatsEl) {
+      myStatsEl.innerHTML = `
+        <div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Active Violations</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--red)">${myViolationsCount}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Warnings</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--orange)">${user.warnings != null ? user.warnings : 0}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Open Appeals</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--blue)">${myOpenAppealsCount}</div>
+        </div>
+      `;
+    }
+
     document.getElementById('user-policies-list').innerHTML = POLICIES.filter(p => p.status === 'active').map(p => `
       <div class="policy-card">
         <div class="policy-icon">📋</div>
@@ -289,6 +341,123 @@ function initDashboard() {
           ${statusBadge(v.status)}
         </div>
       `).join('');
+  }
+}
+
+// ═══════════════════════════════
+// DATABASE MANAGEMENT (ADMIN)
+// ═══════════════════════════════
+function initDatabasePage() {
+  const recordsInput = document.getElementById('records-file-input');
+  const recordsZone = document.getElementById('records-upload-zone');
+  const recordsNameEl = document.getElementById('records-file-name');
+
+  if (recordsNameEl) recordsNameEl.textContent = 'No file selected.';
+
+  if (recordsInput && recordsZone) {
+    recordsInput.addEventListener('change', e => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) {
+        selectedRecordsFile = null;
+        if (recordsNameEl) recordsNameEl.textContent = 'No file selected.';
+        return;
+      }
+      selectedRecordsFile = file;
+      if (recordsNameEl) recordsNameEl.textContent = file.name;
+    });
+
+    ['dragenter', 'dragover'].forEach(evt => {
+      recordsZone.addEventListener(evt, e => {
+        e.preventDefault();
+        e.stopPropagation();
+        recordsZone.classList.add('drag-over');
+      });
+    });
+    ['dragleave', 'dragend', 'drop'].forEach(evt => {
+      recordsZone.addEventListener(evt, e => {
+        e.preventDefault();
+        e.stopPropagation();
+        recordsZone.classList.remove('drag-over');
+      });
+    });
+    recordsZone.addEventListener('drop', e => {
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (!files || !files.length) return;
+      const file = files[0];
+      selectedRecordsFile = file;
+      if (recordsNameEl) recordsNameEl.textContent = file.name;
+    });
+  }
+}
+
+function openRecordsFileDialog(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  const input = document.getElementById('records-file-input');
+  if (input) input.click();
+}
+
+async function uploadDatabase() {
+  if (currentRole !== 'admin') {
+    showToast('⚠ Only admins can upload datasets.');
+    return;
+  }
+
+  let file = null;
+  let btn = null;
+  let nameEl = null;
+
+  file = selectedRecordsFile;
+  btn = document.getElementById('records-upload-btn');
+  nameEl = document.getElementById('records-file-name');
+
+  if (!file) {
+    showToast('⚠ Please choose a file to upload first.');
+    return;
+  }
+
+  const originalText = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Uploading...';
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('kind', 'records');
+
+  try {
+    const res = await fetch('/api/upload-database', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      showToast('⚠ ' + (data.error || 'Failed to upload database file.'));
+      return;
+    }
+
+    showToast('✓ ' + (data.message || 'Database file uploaded successfully.'));
+
+    // Mark DB as connected when records are uploaded successfully
+    const conn = document.getElementById('connection');
+    if (conn) {
+      conn.innerHTML = '<i class="fa-solid fa-link"></i> Connected to DB';
+      conn.style.color = 'var(--green)';
+    }
+
+    if (nameEl) nameEl.textContent = 'No file selected.';
+    selectedRecordsFile = null;
+    const input = document.getElementById('records-file-input');
+    if (input) input.value = '';
+  } catch (err) {
+    console.error(err);
+    showToast('⚠ Failed to contact upload API.');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
   }
 }
 

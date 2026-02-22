@@ -33,10 +33,15 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB
 
 ALLOWED_EXTENSIONS = {"pdf"}
+DB_ALLOWED_EXTENSIONS = {"csv", "txt"}
 
 
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def allowed_db_file(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in DB_ALLOWED_EXTENSIONS
 
 
 def extract_pdf_text(filepath: str) -> str:
@@ -231,6 +236,51 @@ def generate_violations():
         return jsonify({"success": True, "violations": violations})
     except Exception as e:
         return jsonify({"error": f"Failed to generate violations: {str(e)}"}), 500
+
+
+@app.route("/api/upload-database", methods=["POST"])
+def upload_database():
+    """
+    Admin endpoint to upload core datasets:
+    - kind=records   → replaces records.csv used for policy analysis
+    - kind=violations → replaces viola.txt used for live violations feed
+    """
+    if "file" not in request.files:
+        return jsonify({"success": False, "error": "No file part in the request"}), 400
+
+    file = request.files["file"]
+    kind = (request.form.get("kind") or "").strip().lower()
+
+    if file.filename == "":
+        return jsonify({"success": False, "error": "No file selected"}), 400
+
+    if not allowed_db_file(file.filename):
+        return jsonify({"success": False, "error": "Only .csv or .txt files are allowed for database uploads"}), 400
+
+    if kind not in {"records", "violations"}:
+        return jsonify({"success": False, "error": "Invalid kind. Expected 'records' or 'violations'."}), 400
+
+    filename = "records.csv" if kind == "records" else os.path.basename(VIOLA_PATH)
+    target_path = os.path.join(os.path.dirname(__file__), filename)
+
+    try:
+        file.save(target_path)
+
+        global records
+        if kind == "records":
+            # Reload records from the newly uploaded CSV
+            new_records = []
+            with open(target_path, "r") as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    new_records.append(row)
+            records = new_records
+            return jsonify({"success": True, "message": "Employee records uploaded and reloaded successfully.", "count": len(records)})
+        else:
+            # Violations file is read lazily by /api/violations
+            return jsonify({"success": True, "message": "Violations file uploaded successfully."})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Failed to upload database file: {str(e)}"}), 500
 
 
 @app.route("/")

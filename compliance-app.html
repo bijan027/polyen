@@ -30,6 +30,8 @@
         <div class="uid-hints">
           <div class="uid-hint admin" onclick="document.getElementById('uid-input').value='10023'">Admin: 10023</div>
           <div class="uid-hint user" onclick="document.getElementById('uid-input').value='20087'">User: 20087</div>
+            <div class="uid-hint user" onclick="document.getElementById('uid-input').value='1'">Employee: 1</div>
+            <div class="uid-hint user" onclick="document.getElementById('uid-input').value='2'">Employee: 2</div>
         </div>
       </div>
       <div class="login-error" id="login-error">⚠ Invalid Unique ID. IDs must start with 100 (Admin) or 200 (User).</div>
@@ -66,6 +68,9 @@
       </button>
       <button class="nav-btn admin-only" onclick="showPage('audit')" data-page="audit">
         ≡ <span>Audit Logs</span>
+      </button>
+      <button class="nav-btn admin-only" onclick="showPage('database')" data-page="database">
+        ⌂ <span>Database</span>
       </button>
     </div>
     <div class="topbar-right">
@@ -148,20 +153,7 @@
               </div>
               <div class="card">
                 <div class="card-title">My Stats</div>
-                <div style="display:flex;flex-direction:column;gap:16px;padding-top:8px;">
-                  <div>
-                    <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Active Violations</div>
-                    <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--red)">2</div>
-                  </div>
-                  <div>
-                    <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Warnings</div>
-                    <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--orange)">1</div>
-                  </div>
-                  <div>
-                    <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Open Appeals</div>
-                    <div style="font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--blue)">1</div>
-                  </div>
-                </div>
+                <div id="user-my-stats" style="display:flex;flex-direction:column;gap:16px;padding-top:8px;"></div>
               </div>
             </div>
             <div class="card">
@@ -430,6 +422,32 @@
           <div class="card-title">Recommendations</div>
           <div id="risk-recommendations"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- ──────────── DATABASE PAGE (Admin) ──────────── -->
+    <div class="page" id="page-database">
+      <div class="page-header">
+        <div>
+          <div class="breadcrumb">CompliScore / <span>Database</span></div>
+          <div class="page-title">Data <span>Ingestion</span></div>
+          <div class="page-sub">Admins can upload employee records and violation files used by the system.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Employee Records (.csv)</div>
+        <div class="form-row">
+          <label class="form-label">Upload records.csv</label>
+          <div class="upload-zone" id="records-upload-zone" onclick="openRecordsFileDialog(event)">
+            <div class="upload-icon">📊</div>
+            <div class="upload-label">Drop CSV here or click to browse</div>
+            <div class="upload-sub">Expected format: records.csv from dataset</div>
+          </div>
+          <input type="file" id="records-file-input" accept=".csv" style="display:none;">
+          <div class="upload-sub" id="records-file-name" style="margin-top:8px;text-align:left;">No file selected.</div>
+        </div>
+        <button class="btn btn-gold" id="records-upload-btn" onclick="uploadDatabase()" style="width:100%;padding:12px;font-size:12px;">Upload Employee Records</button>
       </div>
     </div>
 
